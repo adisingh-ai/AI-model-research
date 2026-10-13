@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Model architectures for Indic voice AI: ASR, NMT and TTS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F6F7F9;--card:#FFFFFF;--ink:#1B2333;--muted:#596276;--rule:#DCE0E7;
+  --speech:#0D7565;--speech-bg:#E2F2EE;--text:#5243B0;--text-bg:#ECE9FB;
+  --warn:#9C4320;--warn-bg:#FAEDE6;--note:#7A5A0E;--note-bg:#FBF3DF;--good:#2F6A12;--good-bg:#EAF3DE;
+  --sans:"Manrope",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --serif:"Source Serif 4",Georgia,"Times New Roman",serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#12161F;--card:#181D28;--ink:#E5E8EE;--muted:#9AA3B5;--rule:#2A3140;
+    --speech:#5FC8B3;--speech-bg:#12342E;--text:#AB9FF2;--text-bg:#25214A;
+    --warn:#F0A27F;--warn-bg:#3A2319;--note:#E8C46A;--note-bg:#352B12;--good:#A6D47A;--good-bg:#1E3010;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12161F;--card:#181D28;--ink:#E5E8EE;--muted:#9AA3B5;--rule:#2A3140;
+  --speech:#5FC8B3;--speech-bg:#12342E;--text:#AB9FF2;--text-bg:#25214A;
+  --warn:#F0A27F;--warn-bg:#3A2319;--note:#E8C46A;--note-bg:#352B12;--good:#A6D47A;--good-bg:#1E3010;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--serif);font-size:18px;line-height:1.7}
+main{max-width:780px;margin:0 auto;padding:48px 22px 80px}
+h1,h2,h3,h4{font-family:var(--sans);font-weight:700;line-height:1.25;color:var(--ink)}
+h1{font-size:2.3rem;letter-spacing:-0.02em;margin:0 0 14px}
+h2{font-size:1.55rem;margin:64px 0 14px;padding-top:20px;border-top:2px solid var(--ink)}
+h3{font-size:1.2rem;margin:40px 0 8px}
+h4{font-size:1rem;margin:22px 0 6px}
+p{margin:0 0 14px}
+ul{margin:0 0 14px;padding-left:22px}
+li{margin:4px 0}
+a{color:var(--text)}
+a:focus-visible{outline:3px solid var(--speech);outline-offset:2px}
+.lede{font-size:1.2rem;color:var(--muted);margin-bottom:22px}
+.meta{font-family:var(--sans);font-size:0.85rem;color:var(--muted)}
+.key{display:flex;flex-wrap:wrap;gap:18px;font-family:var(--sans);font-size:0.9rem;margin:18px 0}
+.key span{display:inline-flex;align-items:center;gap:8px}
+.sw{width:14px;height:14px;border-radius:3px;display:inline-block}
+.sw.s{background:var(--speech)}.sw.t{background:var(--text)}
+nav.toc{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:16px 22px;margin:26px 0;font-family:var(--sans);font-size:0.95rem}
+nav.toc ol{margin:6px 0 0;padding-left:22px}
+nav.toc li{margin:3px 0}
+figure{margin:22px 0 26px}
+figcaption{font-family:var(--sans);font-size:0.82rem;color:var(--muted);margin-top:8px}
+
+.pipeline{display:grid;grid-template-columns:repeat(4,1fr);font-family:var(--sans)}
+.stage{padding:16px 14px 18px}
+.stage.s{background:var(--speech-bg);border-top:5px solid var(--speech)}
+.stage.t{background:var(--text-bg);border-top:5px solid var(--text)}
+.stage.off{background:transparent;border:1px dashed var(--muted);border-top:5px dashed var(--muted)}
+.stage .lab{font-size:0.78rem;font-weight:700;color:var(--muted)}
+.stage .nm{font-size:1.02rem;font-weight:700;margin:2px 0 6px}
+.stage .ex{font-size:0.85rem;line-height:1.45}
+.ends{display:flex;justify-content:space-between;font-family:var(--sans);font-size:0.85rem;color:var(--muted);margin-top:8px}
+@media (max-width:640px){.pipeline{grid-template-columns:1fr 1fr}}
+
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:14px 0 16px;font-family:var(--sans)}
+.step{border-radius:8px;padding:9px 12px;min-width:104px;text-align:center;border:1px solid}
+.step b{display:block;font-size:0.92rem;font-weight:700}
+.step span{display:block;font-size:0.75rem;line-height:1.35;margin-top:2px}
+.step.s{background:var(--speech-bg);border-color:var(--speech)}
+.step.s span{color:var(--speech)}
+.step.t{background:var(--text-bg);border-color:var(--text)}
+.step.t span{color:var(--text)}
+.arr{color:var(--muted);font-size:1.1rem}
+.loop{font-family:var(--sans);font-size:0.85rem;color:var(--muted);margin:-6px 0 14px}
+.hgrid{display:grid;grid-template-columns:1fr 210px;gap:16px;align-items:start;font-family:var(--sans);margin:18px 0 8px}
+@media (max-width:640px){.hgrid{grid-template-columns:1fr}}
+.vflow{display:flex;flex-direction:column;align-items:center;gap:2px}
+.vflow .step{width:100%;max-width:340px}
+.vflow .arr{line-height:1.2}
+.step.h{background:var(--card);border-color:var(--muted)}
+.step.h span{color:var(--muted)}
+.endpt{font-size:0.85rem;color:var(--muted);padding:4px 0}
+.side{border:1.5px dashed var(--muted);border-radius:10px;padding:14px;font-size:0.85rem;line-height:1.5;margin-top:44px;background:var(--card)}
+.side b{display:block;font-size:0.95rem;margin-bottom:4px}
+.hkey{display:flex;flex-wrap:wrap;gap:16px;font-family:var(--sans);font-size:0.82rem;color:var(--muted);margin-top:10px}
+.hkey span{display:inline-flex;align-items:center;gap:6px}
+.sw.h{background:var(--card);border:1px solid var(--muted)}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px;font-family:var(--sans)}
+@media (max-width:640px){.two{grid-template-columns:1fr}}
+.panel{border:1px solid var(--rule);border-radius:10px;padding:14px 16px;background:var(--card)}
+.panel h4{margin:0 0 6px}
+.panel p{font-size:0.88rem;line-height:1.5;margin:6px 0 0}
+
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 4px;font-family:var(--sans)}
+.tag{font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:5px}
+.tag.hist{background:var(--warn-bg);color:var(--warn)}
+.tag.now{background:var(--good-bg);color:var(--good)}
+.tag.new{background:var(--note-bg);color:var(--note)}
+.field{margin:0 0 10px}
+.field strong{font-family:var(--sans);font-size:0.9rem}
+.pc{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0 6px;font-family:var(--sans);font-size:0.86rem;line-height:1.5}
+@media (max-width:640px){.pc{grid-template-columns:1fr}}
+.pc div{padding:10px 12px;border-radius:8px}
+.pc .w{background:var(--good-bg)}.pc .w b{color:var(--good)}
+.pc .s{background:var(--warn-bg)}.pc .s b{color:var(--warn)}
+
+.replaced{font-family:var(--sans);font-size:0.9rem;background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:12px 16px;margin:14px 0 8px;line-height:1.55}
+.replaced b{display:block;margin-bottom:4px}
+
+.tablewrap{overflow-x:auto;margin:18px 0 24px;border:1px solid var(--rule);border-radius:10px;background:var(--card)}
+table{border-collapse:collapse;width:100%;font-family:var(--sans);font-size:0.86rem;line-height:1.45}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--rule)}
+th{font-weight:700;background:var(--bg)}
+tr:last-child td{border-bottom:none}
+.wide table{min-width:820px}
+
+.callout{background:var(--note-bg);border-left:4px solid var(--note);padding:12px 16px;margin:18px 0;font-size:1rem}
+.case{border:2px solid var(--ink);border-radius:12px;padding:14px 18px;margin:22px 0;background:var(--card)}
+.case h4{margin:0 0 4px}
+.case p{font-size:0.98rem}
+
+.tree{font-family:var(--sans);margin:22px 0}
+.root{max-width:340px;margin:0 auto;text-align:center;padding:14px;border:2px solid var(--ink);border-radius:10px;background:var(--card)}
+.root b{display:block;font-size:1.05rem}.root span{font-size:0.82rem;color:var(--muted)}
+.trunk{width:2px;height:22px;background:var(--ink);margin:0 auto}
+.branches{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;border-top:2px solid var(--ink);padding-top:22px;position:relative}
+@media (max-width:640px){.branches{grid-template-columns:1fr;border-top:none;padding-top:0}}
+.br{border-radius:10px;padding:12px 14px;font-size:0.85rem;line-height:1.5}
+.br.s{background:var(--speech-bg);border-top:4px solid var(--speech)}
+.br.t{background:var(--text-bg);border-top:4px solid var(--text)}
+.br b{display:block;font-size:0.98rem;margin-bottom:4px}
+.br ul{padding-left:18px;margin:6px 0 0}
+
+svg text{font-family:var(--sans)}
+dl.gloss{margin:16px 0}
+dl.gloss dt{font-family:var(--sans);font-weight:700;font-size:0.95rem;margin-top:14px}
+dl.gloss dd{margin:2px 0 0}
+footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--rule);font-family:var(--sans);font-size:0.85rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+
+<header>
+<h1>Model architectures for Indic voice AI</h1>
+<p class="lede">How speech recognition, translation and speech generation models are built, why each one is built differently, and which designs work best for Indian languages.</p>
+<div class="key"><span><i class="sw s"></i>Speech models (hear or make audio)</span><span><i class="sw t"></i>Text models (read or write words)</span></div>
+</header>
+
+<nav class="toc" aria-label="Contents">
+<strong>Contents</strong>
+<ol>
+<li><a href="#intro">Introduction</a></li>
+<li><a href="#blocks">The building blocks</a></li>
+<li><a href="#best">Is the transformer really best for Indic languages?</a></li>
+<li><a href="#asr">ASR: speech to text</a></li>
+<li><a href="#nmt">NMT: translation</a></li>
+<li><a href="#tts">TTS: text to speech</a></li>
+<li><a href="#helpers">The steps between the models</a></li>
+<li><a href="#compare">Why each domain picked a different architecture</a></li>
+<li><a href="#measure">How we measure them</a></li>
+<li><a href="#thread">The common thread</a></li>
+<li><a href="#glossary">Glossary</a></li>
+</ol>
+</nav>
+
+<!-- 1 -->
+<section id="intro">
+<h2>1. Introduction</h2>
+<h3>What a model architecture is</h3>
+<p>A model architecture is the way a model is wired: how information enters, how it moves between the model's parts, and how the answer comes out. Two models can share an architecture and still behave very differently, because what they learn depends on the data they were trained on. The architecture is the shape of the brain; the data is what it learned.</p>
+<h3>Why ASR, NMT and TTS together</h3>
+<p>These are the three model stages of a typical Indic voice AI system. A caller speaks in their own language, the system turns that into text, translates it if needed, works out a reply, and speaks it back. Each stage handles a different kind of data, which is why each settled on a different design.</p>
+<figure>
+<div class="pipeline" role="img" aria-label="Pipeline: ASR, NMT, language model (out of scope), TTS">
+  <div class="stage s"><div class="lab">Ears</div><div class="nm">ASR: speech to text</div><div class="ex">IndicConformer, Indic-Transcribe, IndicWav2Vec</div></div>
+  <div class="stage t"><div class="lab">Interpreter</div><div class="nm">NMT: translation</div><div class="ex">IndicTrans2, Sarvam-Translate, Indic-Translate</div></div>
+  <div class="stage off"><div class="lab">Brain</div><div class="nm">Language model</div><div class="ex">Decides what to say. Out of scope for this guide.</div></div>
+  <div class="stage s"><div class="lab">Mouth</div><div class="nm">TTS: text to speech</div><div class="ex">Indic-TTS, IndicF5, Indic-Speak</div></div>
+</div>
+<div class="ends"><span>Caller speaks</span><span>Caller hears the reply</span></div>
+<figcaption>A typical Indic voice AI pipeline. Translation is only needed when the caller's language differs from the language the system reasons in.</figcaption>
+</figure>
+</section>
+
+<!-- 2 -->
+<section id="blocks">
+<h2>2. The building blocks</h2>
+
+<h3>What a neural network is</h3>
+<p>A neural network is a large set of simple calculators arranged in layers. Each one takes in numbers, multiplies them by its own learned values (its <a href="#g-parameters">parameters</a>), and passes the result on. Training means showing the network many examples and nudging those values until its answers come out right. Everything a network "knows" is stored in those values.</p>
+<p>Because networks only work with numbers, every word or sound slice is first turned into a list of numbers called an <a href="#g-embedding">embedding</a>. Words with similar meanings end up with similar lists.</p>
+
+<h3>What attention means</h3>
+<p>Attention lets each word look at every other word in the input and decide how much each one matters to it, however far apart they are. This is how a model links a verb to its subject at the other end of a long sentence.</p>
+<figure>
+<svg viewBox="0 0 680 210" width="100%" role="img" aria-label="Attention example: the word 'is' attends most strongly to 'farmer' far earlier in the sentence">
+<g stroke="var(--speech)" stroke-linecap="round" fill="none">
+<path d="M560 140 Q 330 20 100 140" stroke-width="5"/>
+<path d="M560 140 Q 420 60 280 140" stroke-width="1.2" opacity="0.5"/>
+<path d="M560 140 Q 470 80 380 140" stroke-width="1.2" opacity="0.4"/>
+<path d="M560 140 Q 515 95 470 140" stroke-width="1.5" opacity="0.5"/>
+</g>
+<g font-size="15" fill="var(--ink)" text-anchor="middle">
+<text x="100" y="166">farmer</text><text x="190" y="166" fill="var(--muted)">who</text><text x="280" y="166" fill="var(--muted)">sold</text><text x="380" y="166" fill="var(--muted)">cows</text><text x="470" y="166" fill="var(--muted)">yesterday</text><text x="560" y="166" font-weight="700">is</text><text x="640" y="166" fill="var(--muted)">happy</text>
+</g>
+<text x="340" y="200" font-size="13" fill="var(--muted)" text-anchor="middle">Line thickness shows how much "is" pays attention to each word</text>
+</svg>
+<figcaption>"is" must agree with "farmer", five words back. Attention links them directly. Older step-by-step models had to carry that information through every word in between, and often lost it.</figcaption>
+</figure>
+
+<h3>Encoder vs decoder</h3>
+<p>Most of the models in this guide are built from one or both of these two parts.</p>
+<figure>
+<div class="two">
+<div class="panel"><h4>Encoder: the reader</h4>
+<div class="flow"><div class="step t"><b>Full input</b></div><span class="arr" aria-hidden="true">→</span><div class="step t"><b>Understand</b><span>sees everything at once</span></div><span class="arr" aria-hidden="true">→</span><div class="step t"><b>Meaning</b></div></div>
+<p>Reads the whole input and builds an understanding of it. Never produces free output on its own.</p></div>
+<div class="panel"><h4>Decoder: the writer</h4>
+<div class="flow"><div class="step t"><b>So far</b></div><span class="arr" aria-hidden="true">→</span><div class="step t"><b>Next piece</b><span>sees only the past</span></div><span class="arr" aria-hidden="true">→</span><div class="step t"><b>Add on, repeat</b></div></div>
+<p>Writes output one piece at a time, each piece based on everything written before it.</p></div>
+</div>
+<figcaption>Encoder-decoder models join the two: the writer checks the reader's notes before each new piece. Decoder-only models (most LLMs) skip the reader and treat the input as the start of what they are writing.</figcaption>
+</figure>
+
+<h4>Does every model have both?</h4>
+<p>No. Each stage of the pipeline tends to follow its own pattern.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Stage</th><th>Usual shape</th><th>Why</th><th>Examples</th></tr></thead>
+<tbody>
+<tr><td><strong>ASR</strong></td><td>Always has an encoder. Either encoder-only or encoder-decoder.</td><td>Understanding long audio is the hard part, so the encoder does most of the work. The output is written either by a simple CTC layer (fast) or by a decoder (better grammar and punctuation).</td><td>Encoder-only: IndicConformer, IndicWav2Vec<br>Both: Whisper, Indic-Transcribe</td></tr>
+<tr><td><strong>NMT</strong></td><td>Usually both. Newer systems are decoder-only.</td><td>Translation needs to fully understand one sentence, then write another. LLM-based translation folds both jobs into one decoder.</td><td>Both: IndicTrans2, NLLB-200<br>Decoder-only: Sarvam-Translate, Indic-Translate</td></tr>
+<tr><td><strong>LLM</strong></td><td>Decoder-only</td><td>Its job is to keep writing, one piece at a time. The prompt is simply the start of what it writes.</td><td>Gemma, Llama, Sarvam-30B</td></tr>
+<tr><td><strong>TTS</strong></td><td>Usually both, plus a vocoder. Newer systems are decoder-only.</td><td>A text encoder reads the words and a decoder produces the sound picture or sound tokens. A vocoder then makes the audio wave. Speech LLMs skip the separate text encoder.</td><td>Both: FastPitch, Indic Parler-TTS<br>Decoder-only: Indic-Speak</td></tr>
+</tbody></table></div>
+<p>In short, the stages that write text lean on decoders (LLM, NMT), the stage that has to understand audio leans on the encoder (ASR), and TTS sits in between because it both reads text and produces sound.</p>
+<div class="callout"><strong>A naming trap.</strong> The words also have a second meaning. In compression models such as audio codecs, the "encoder" squeezes sound into codes and the "decoder" rebuilds the sound from them. So the "Vocos decoder" in Indic-Speak rebuilds audio; it is not a decoder that writes words.</div>
+
+<h3>Tokens and audio codecs</h3>
+<p>Models do not read whole sentences. Text is cut into <a href="#g-token">tokens</a>, usually word pieces. Audio can also be turned into tokens by an <a href="#g-codec">audio codec</a>, a model that compresses sound into a short list of codes and can rebuild the sound from them. Codecs are what let a text-style model generate speech.</p>
+
+<h3>Why audio and text need a different design than images</h3>
+<div class="two">
+<div class="panel"><h4>An image</h4><p>Fixed size. Every part is available at once. Order does not change meaning: a cat is a cat wherever it sits in the picture.</p></div>
+<div class="panel"><h4>Audio and text</h4><p>Variable length. Order changes meaning ("dog bites man" vs "man bites dog"). Meaning depends on what came before and after. Audio is also very long: about 100 slices a second for ASR and 24,000 samples a second for output speech.</p></div>
+</div>
+<p>So sequence models need two things images do not: a sense of order, and a way to connect pieces that are far apart. Attention provides both, which is why the transformer took over.</p>
+</section>
+
+<!-- 3 -->
+<section id="best">
+<h2>3. Is the transformer really "best" for Indic languages?</h2>
+<p><strong>Short answer:</strong> it is an empirical pattern, not a mathematical proof. Across most benchmarks for Indian languages, transformer-based models currently score best. That is a statement about results so far, not a law.</p>
+
+<h3>Why it tends to win</h3>
+<p>Indian languages have relatively free word order and rich morphology, meaning a lot of grammar is packed into word endings (tense, gender, case, politeness). Getting a sentence right often depends on linking words that sit far apart. Attention connects any two words directly, while older step-by-step designs like RNNs had to carry that link through every word in between and frequently lost it. Transformers also train in parallel, which made training on very large datasets practical.</p>
+
+<h3>Why it wins harder for Indic specifically</h3>
+<p>Transformers made large-scale multilingual pretraining practical. One model can learn from many languages at once, and a low-resource language like Bhili can borrow patterns from a better-resourced relative like Marathi: shared vocabulary, similar grammar, and the same Devanagari script. For languages with very little data of their own, this borrowing matters more than any other single factor.</p>
+
+<h3>A factor that is easy to miss: the tokenizer</h3>
+<p>How a model cuts text into tokens matters as much as its architecture. Tokenizers built mostly on English split Indic words into many tiny pieces, so the model sees more fragments, runs slower, and understands less. Models with tokenizers trained on Indian languages (IndicTrans2, Sarvam's models) do noticeably better for the same size.</p>
+
+<h3>The honest caveats</h3>
+<ul>
+<li><strong>"Best family" is not "any model".</strong> A transformer trained on little or poorly matched data will still perform badly. The pretraining and fine-tuning data decide the result for a given language.</li>
+<li><strong>Plain transformers are rarely used alone for speech.</strong> ASR models add convolution layers to catch fine sound detail, and TTS models add vocoders and codecs to produce audio. Section 8 explains why.</li>
+<li><strong>It may not stay this way.</strong> State space models such as Mamba are competitive for long, streaming audio, where transformers become expensive.</li>
+</ul>
+</section>
+
+<!-- 4 -->
+<section id="asr">
+<h2>4. ASR: speech to text</h2>
+<div class="replaced"><b>What came before</b>Until about 2012, speech recognition used statistical models with hand-built pronunciation dictionaries. Neural networks first replaced parts of that pipeline, then replaced the whole thing with single models that go straight from audio to text.</div>
+
+<h3>Three questions every ASR model answers</h3>
+<p>The names of ASR models can be confusing because they mix three separate choices. It helps to see any model as an answer to these three questions.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Question</th><th>Common answers</th><th>What it affects</th></tr></thead>
+<tbody>
+<tr><td><strong>How does it listen?</strong><br>(the encoder)</td><td>RNN, transformer, Conformer</td><td>Accuracy and how much fine sound detail is caught</td></tr>
+<tr><td><strong>How does it write?</strong><br>(the output method)</td><td><a href="#g-ctc">CTC</a>, <a href="#g-rnnt">RNN-T</a>, attention decoder</td><td>Speed, whether it can stream live, and grammar quality</td></tr>
+<tr><td><strong>How was it trained?</strong></td><td>Supervised on transcripts, or self-supervised on raw audio and then fine-tuned</td><td>How much transcribed data you need</td></tr>
+</tbody></table></div>
+<p>For example, IndicWav2Vec is a transformer encoder, writes with CTC, and was self-supervised. Indic-Transcribe is a Conformer encoder, writes with an attention decoder, and was trained on transcripts.</p>
+
+<h3>RNN-based ASR</h3>
+<div class="tags"><span class="tag hist">History</span></div>
+<div class="flow">
+<div class="step s"><b>Audio slice</b><span>one at a time</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>RNN or LSTM</b><span>carries a memory</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Letter guess</b><span>via CTC</span></div>
+</div>
+<p class="loop">Then the next slice, carrying the memory forward.</p>
+<p class="field">The first end-to-end systems (such as DeepSpeech, 2014 to 2016) read audio step by step with a running memory. They removed the pronunciation dictionary but were slow to train, forgot long context, and needed thousands of transcribed hours. Mostly replaced, though small recurrent parts still appear in on-device models.</p>
+
+<h3>Self-supervised pretrained encoders (wav2vec 2.0 and HuBERT style)</h3>
+<div class="tags"><span class="tag now">In use</span></div>
+<div class="flow">
+<div class="step s"><b>Raw audio</b><span>no transcripts</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Learn by guessing</b><span>hidden audio chunks</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Fine-tune</b><span>few hours of transcripts</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Text</b><span>via CTC</span></div>
+</div>
+<p class="field"><strong>How it works.</strong> A transformer encoder first learns what speech sounds like from large amounts of untranscribed audio, by hiding chunks and learning to predict them. It is then fine-tuned with a small transcribed set and a simple CTC output.</p>
+<p class="field"><strong>Indic examples.</strong> IndicWav2Vec (AI4Bharat), Meta MMS.</p>
+<div class="pc"><div class="w"><b>Wins</b><br>Very little transcribed data needed. Good for low-resource languages and dialects. Fast.</div><div class="s"><b>Struggles</b><br>Usually one fine-tune per language. No punctuation. Weaker grammar without an added language model.</div></div>
+
+<h3>Conformer (convolution plus transformer)</h3>
+<div class="tags"><span class="tag now">In use</span></div>
+<div class="flow">
+<div class="step s"><b>Audio picture</b><span>mel spectrogram</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Convolution</b><span>fine sound detail</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Attention</b><span>context across time</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Text</b><span>CTC or RNN-T</span></div>
+</div>
+<p class="loop">Convolution and attention alternate in every block, many blocks deep.</p>
+<p class="field"><strong>How it works.</strong> Speech has two kinds of detail: tiny, fast sounds inside a word, and context across a sentence. Convolution layers catch the first, attention catches the second. FastConformer is NVIDIA's faster version that shrinks the audio earlier.</p>
+<p class="field"><strong>Indic examples.</strong> IndicConformer (AI4Bharat, with CTC and RNN-T outputs); the encoder inside Indic-Transcribe.</p>
+<div class="pc"><div class="w"><b>Wins</b><br>Strong accuracy for its size. With CTC or RNN-T output it streams well for live calls.</div><div class="s"><b>Struggles</b><br>Needs a good amount of transcribed data. CTC output has limited grammar awareness.</div></div>
+
+<h3>Whisper-style encoder-decoder</h3>
+<div class="tags"><span class="tag now">In use</span></div>
+<div class="flow">
+<div class="step s"><b>Audio</b><span>up to 30 s chunks</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Encoder</b><span>understands the audio</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step t"><b>Decoder</b><span>writes word pieces</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step t"><b>Punctuated text</b><span>plus language detected</span></div>
+</div>
+<p class="field"><strong>How it works.</strong> An encoder understands the audio and a text decoder writes the transcript piece by piece, checking back with the encoder each time. Because the decoder is a small language model, output has punctuation and better grammar, and one model can handle many languages and tasks.</p>
+<p class="field"><strong>Indic examples.</strong> Whisper (OpenAI); Indic-Transcribe (Bodhan AI and AI4Bharat), which uses NVIDIA's Canary design.</p>
+<div class="pc"><div class="w"><b>Wins</b><br>Highest accuracy. Handles code-mixing, punctuation and language detection in one model.</div><div class="s"><b>Struggles</b><br>Can invent text on silence or noise. Heavier and harder to stream live.</div></div>
+
+<div class="case">
+<h4>Case study: Indic-Transcribe</h4>
+<div class="flow">
+<div class="step s"><b>Caller audio</b><span>16 kHz mono</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>FastConformer encoder</b><span>32 layers</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step t"><b>Transformer decoder</b><span>24 layers</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step t"><b>Native-script text</b></div>
+</div>
+<p>About 1.2 billion parameters, 25 languages including Bhojpuri and Bhili, with code-mixed speech and language detection built in. It combines two of the designs above: a Conformer listener with a Whisper-style writer. Most current models are combinations like this.</p>
+</div>
+</section>
+
+<!-- 5 -->
+<section id="nmt">
+<h2>5. NMT: translation</h2>
+<div class="replaced"><b>What came before</b>Statistical systems translated in phrase-sized chunks and produced choppy output. RNN encoder-decoders (2014) made translation fluent, attention (2015) fixed long sentences, and the transformer (2017) made everything faster and better.</div>
+<p>Note that the first two designs below share the same architecture. The difference between them is the data they were trained on, which is exactly the point made in section 3.</p>
+
+<h3>Vanilla transformer encoder-decoder</h3>
+<div class="tags"><span class="tag hist">Foundation</span></div>
+<div class="flow">
+<div class="step t"><b>Source sentence</b><span>one language</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step t"><b>Encoder</b><span>understands it</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step t"><b>Decoder</b><span>writes, checking back</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step t"><b>Target sentence</b><span>one other language</span></div>
+</div>
+<p class="field">The original 2017 transformer, trained for a single language pair on that pair's sentence pairs only. It works well when millions of sentence pairs exist, which is rarely true for Indian languages, and very rarely for tribal languages.</p>
+
+<h3>Multilingual pretrained encoder-decoder</h3>
+<div class="tags"><span class="tag now">In use</span></div>
+<div class="flow">
+<div class="step t"><b>Any source language</b><span>plus a target tag</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step t"><b>Shared encoder</b><span>all languages together</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step t"><b>Shared decoder</b><span>writes the tagged language</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step t"><b>Translation</b></div>
+</div>
+<p class="field"><strong>How it works.</strong> Same architecture, but one model is trained on many languages at once, so related languages share what they learn. A tag tells the model which language to write.</p>
+<p class="field"><strong>Indic examples.</strong> IndicTrans2 (AI4Bharat, all 22 scheduled languages); NLLB-200 (Meta).</p>
+<div class="pc"><div class="w"><b>Wins</b><br>Strong, fast and fairly small. Best option for scheduled Indian languages today.</div><div class="s"><b>Struggles</b><br>Languages outside its training set, such as Bhili, are not covered without further training.</div></div>
+
+<h3>Fine-tuned decoder-only LLM</h3>
+<div class="tags"><span class="tag now">In use</span><span class="tag new">Growing</span></div>
+<div class="flow">
+<div class="step t"><b>Instruction and sentence</b><span>"Translate to Bhili: ..."</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step t"><b>LLM</b><span>predicts next piece</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step t"><b>Translation grows</b><span>piece by piece</span></div>
+</div>
+<p class="field"><strong>How it works.</strong> A general LLM, already pretrained on huge amounts of multilingual text, is fine-tuned on translation pairs. Translation becomes "continue this text in the other language".</p>
+<p class="field"><strong>Indic examples.</strong> Sarvam-Translate (built on Gemma 3); Indic-Translate (Bodhan AI and AI4Bharat).</p>
+<div class="pc"><div class="w"><b>Wins</b><br>Uses wider context, follows style instructions, and adapts to a new language from a small dataset.</div><div class="s"><b>Struggles</b><br>Larger and costlier to run. Can add or drop content, so outputs need checking.</div></div>
+</section>
+
+<!-- 6 -->
+<section id="tts">
+<h2>6. TTS: text to speech</h2>
+<div class="replaced"><b>What came before</b>Older systems stitched together recorded sound units, or generated speech from statistics. Both sounded robotic and needed many studio hours per voice. WaveNet (2016) produced the first natural machine speech, but was far too slow for real use.</div>
+<p>Most TTS systems have two jobs: turn text into a "sound picture" (a <a href="#g-mel">mel spectrogram</a>) or sound tokens, then turn that into an actual audio wave using a <a href="#g-vocoder">vocoder</a>.</p>
+
+<h3>Autoregressive Tacotron-style, with a separate vocoder</h3>
+<div class="tags"><span class="tag hist">History</span></div>
+<div class="flow">
+<div class="step t"><b>Text</b></div><span class="arr" aria-hidden="true">→</span>
+<div class="step t"><b>Encoder</b><span>reads characters</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Decoder with attention</b><span>one frame at a time</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Sound picture</b></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Vocoder</b><span>audio wave</span></div>
+</div>
+<p class="field">Tacotron 2 (2017 to 2018) went from text straight to a sound picture, frame by frame. Natural, but slow, and attention sometimes slipped, skipping or repeating words. Rarely used for new work.</p>
+
+<h3>Non-autoregressive FastSpeech-style</h3>
+<div class="tags"><span class="tag now">In use</span></div>
+<div class="flow">
+<div class="step t"><b>Text</b></div><span class="arr" aria-hidden="true">→</span>
+<div class="step t"><b>Encoder</b><span>reads phonemes or characters</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Duration and pitch</b><span>how long, how high</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Whole sound picture</b><span>all at once</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>GAN vocoder</b><span>e.g. HiFi-GAN</span></div>
+</div>
+<p class="field"><strong>How it works.</strong> Instead of guessing frame by frame, a small predictor decides how long each sound lasts and what pitch it has, then the whole sound picture is made in one go. A fast <a href="#g-gan">GAN</a> vocoder turns it into audio.</p>
+<p class="field"><strong>Indic examples.</strong> AI4Bharat Indic-TTS (FastPitch with HiFi-GAN).</p>
+<div class="pc"><div class="w"><b>Wins</b><br>Fast, stable, never skips words. Easy to run in real time on modest hardware.</div><div class="s"><b>Struggles</b><br>Two separate models to train. Voices can sound a little flat. Needs training per voice.</div></div>
+
+<h3>End-to-end VITS-style</h3>
+<div class="tags"><span class="tag now">In use</span></div>
+<div class="flow">
+<div class="step t"><b>Text</b></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Flexible sound space</b><span>VAE and flow</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Built-in vocoder</b><span>GAN trained</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Audio wave</b></div>
+</div>
+<p class="field"><strong>How it works.</strong> One model goes all the way from text to audio, with no separate vocoder step. A <a href="#g-vae">VAE</a> lets it produce natural variation so the same sentence is not read identically every time.</p>
+<p class="field"><strong>Examples.</strong> VITS; Meta MMS-TTS (over 1,100 languages, including several Indian languages).</p>
+<div class="pc"><div class="w"><b>Wins</b><br>Single model, natural sound, fast.</div><div class="s"><b>Struggles</b><br>Needs training per voice. Cannot copy a new voice from a short sample.</div></div>
+
+<h3>Flow matching (diffusion family)</h3>
+<div class="tags"><span class="tag now">In use</span><span class="tag new">Growing</span></div>
+<div class="flow">
+<div class="step s"><b>Noise</b><span>random start</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Clean up a little</b><span>guided by text and voice sample</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Repeat a few times</b></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Natural speech</b></div>
+</div>
+<p class="field"><strong>How it works.</strong> Starts from static and removes it step by step, guided by the text and a few seconds of a reference voice. Flow matching is a faster cousin of diffusion that needs fewer steps.</p>
+<p class="field"><strong>Indic examples.</strong> IndicF5 (AI4Bharat), built on F5-TTS.</p>
+<div class="pc"><div class="w"><b>Wins</b><br>Very natural and expressive. Can copy a voice from a short sample.</div><div class="s"><b>Struggles</b><br>More compute per sentence, so higher delay. Voice copying raises consent questions.</div></div>
+
+<h3>LLM-based speech generation</h3>
+<div class="tags"><span class="tag now">In use</span><span class="tag new">Growing</span></div>
+<div class="flow">
+<div class="step t"><b>Text and speaker</b></div><span class="arr" aria-hidden="true">→</span>
+<div class="step t"><b>Speech LLM</b><span>predicts sound tokens</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Sound tokens</b><span>audio codec codes</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Vocoder</b><span>tokens to wave</span></div>
+</div>
+<p class="field"><strong>How it works.</strong> A decoder-only language model is trained to write <a href="#g-codec">audio codec</a> tokens instead of words. A vocoder then turns the tokens into sound. Because it is an LLM underneath, it handles context, code-mixing and speaking style well.</p>
+<p class="field"><strong>Indic examples.</strong> Indic-Speak (Bodhan AI and AI4Bharat); Indic Parler-TTS (AI4Bharat), which pairs a text encoder with an audio-token decoder and takes a written description of the voice.</p>
+<div class="pc"><div class="w"><b>Wins</b><br>Expressive, handles code-mixed sentences and style prompts, one model for many languages.</div><div class="s"><b>Struggles</b><br>Larger models. Can occasionally mumble, skip or repeat words.</div></div>
+
+<div class="case">
+<h4>Case study: Indic-Speak</h4>
+<div class="flow">
+<div class="step t"><b>Text and speaker</b><span>optional style</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step t"><b>Llama 3.2 speech LLM</b><span>3B parameters</span></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>SNAC codes</b></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>Vocos vocoder</b></div><span class="arr" aria-hidden="true">→</span>
+<div class="step s"><b>24 kHz speech</b></div>
+</div>
+<p>22 Indian languages and English from a library of recorded voices (its voice list includes Bhili speakers), with a start-up delay of around 200 milliseconds. It does not copy new voices.</p>
+</div>
+</section>
+
+<section id="helpers">
+<h2>7. The steps between the models</h2>
+<p>ASR, NMT and TTS do the heavy lifting, but a real voice agent also runs a set of smaller helper steps between them. These steps decide whether the system works on real phone calls, with background noise, mixed languages, numbers and pauses. When a voice agent misbehaves, one of these helpers is often the cause rather than the main model.</p>
+<figure>
+<div class="hgrid">
+<div class="vflow" role="img" aria-label="Full voice agent pipeline: voice activity detection, language identification, ASR, inverse text normalisation, NMT or LLM, text normalisation, pronunciation, TTS">
+<div class="endpt">Caller speaks</div><span class="arr" aria-hidden="true">↓</span>
+<div class="step h"><b>Voice activity detection</b><span>Is anyone speaking?</span></div><span class="arr" aria-hidden="true">↓</span>
+<div class="step h"><b>Language identification</b><span>Which language?</span></div><span class="arr" aria-hidden="true">↓</span>
+<div class="step s"><b>ASR</b><span>speech to text</span></div><span class="arr" aria-hidden="true">↓</span>
+<div class="step h"><b>Inverse text normalisation</b><span>pacchis → 25</span></div><span class="arr" aria-hidden="true">↓</span>
+<div class="step t"><b>NMT / LLM</b><span>translate, decide the reply</span></div><span class="arr" aria-hidden="true">↓</span>
+<div class="step h"><b>Text normalisation</b><span>₹2,500 → spoken words</span></div><span class="arr" aria-hidden="true">↓</span>
+<div class="step h"><b>Pronunciation (G2P)</b><span>letters → sounds</span></div><span class="arr" aria-hidden="true">↓</span>
+<div class="step s"><b>TTS</b><span>text to speech</span></div><span class="arr" aria-hidden="true">↓</span>
+<div class="endpt">Caller hears the reply</div>
+</div>
+<aside class="side"><b>Turn-taking</b>Runs alongside the first three steps while the caller is talking. It decides when the caller has actually finished, not just paused, and then signals the NMT / LLM step to reply.</aside>
+</div>
+<div class="hkey"><span><i class="sw s"></i>Speech model</span><span><i class="sw t"></i>Text model</span><span><i class="sw h"></i>Helper step</span></div>
+<figcaption>Inverse text normalisation and text normalisation are mirror images, which is why they sit on either side of the NMT / LLM step. Turn-taking is not a step the audio passes through; it judges when to hand over.</figcaption>
+</figure>
+<div class="tablewrap wide"><table>
+<thead><tr><th>Step</th><th>In plain words</th><th>Indic example</th><th>What breaks without it</th><th>Common tools</th></tr></thead>
+<tbody>
+<tr><td><strong><a href="#g-vad">Voice activity detection</a></strong></td><td>Separates speech from silence and background noise, so only real speech is sent on</td><td>Ignores a fan, traffic or a TV in the background</td><td>ASR transcribes noise, or invents words on silence</td><td>Silero VAD, NVIDIA MarbleNet</td></tr>
+<tr><td><strong>Language identification</strong></td><td>Works out which language the caller is speaking</td><td>Tells Marathi from Hindi on a helpline that takes both</td><td>Wrong ASR model is used, giving a garbled transcript</td><td>Often built into ASR (Whisper, Indic-Transcribe); IndicLID for text</td></tr>
+<tr><td><strong>Inverse text normalisation</strong></td><td>Turns spoken forms into written ones</td><td>"pacchis" → 25, "das baje" → 10:00</td><td>Numbers, dates and amounts stay as words, so the LLM or a database lookup misreads them</td><td>Rule-based grammars, such as NVIDIA NeMo text processing</td></tr>
+<tr><td><strong><a href="#g-tn">Text normalisation</a></strong></td><td>The reverse, before speaking: written forms into the words to say</td><td>₹2,500 → "do hazaar paanch sau rupaye"</td><td>TTS reads symbols wrongly, skips them, or reads digits one by one</td><td>The same rule-based libraries, plus custom rules per language</td></tr>
+<tr><td><strong><a href="#g-g2p">Pronunciation (G2P)</a></strong></td><td>Converts spelling into the sounds to say</td><td>Hindi "कमल" is said "kamal", not "kamala" (<a href="#g-schwa">schwa deletion</a>)</td><td>Words sound unnatural or wrong, especially names and English words written in Indic script</td><td>Indic scripts are mostly phonetic, so many Indic TTS models read characters directly and only need rules for exceptions</td></tr>
+<tr><td><strong><a href="#g-turn">Turn-taking</a></strong></td><td>Decides when the caller has actually finished, not just paused</td><td>A caller says "mera account number hai..." then pauses to find it</td><td>The agent interrupts mid-sentence, or waits awkwardly long</td><td>Silence timers, or small "smart turn" models that also use tone and words</td></tr>
+</tbody></table></div>
+<div class="callout">When testing a voice agent, check these helper steps first. A wrong number read aloud or an agent that interrupts callers is usually a normalisation or turn-taking problem, not an ASR or TTS model problem.</div>
+</section>
+
+<!-- 7 -->
+<section id="compare">
+<h2>8. Why each domain picked a different architecture</h2>
+<div class="tablewrap wide"><table>
+<thead><tr><th></th><th>ASR</th><th>NMT</th><th>TTS</th></tr></thead>
+<tbody>
+<tr><td><strong>Input to output</strong></td><td>Long, noisy audio to short text</td><td>Text to text of similar length</td><td>Short text to very long audio</td></tr>
+<tr><td><strong>What matters most</strong></td><td>Handling accents, noise and code-mixing; working live</td><td>Keeping meaning, grammar agreement and word order</td><td>Natural sound, correct pronunciation, speed, a consistent voice</td></tr>
+<tr><td><strong>Why not a plain transformer alone</strong></td><td>Audio has about 100 slices a second, so attention over all of it is costly, and it misses tiny sound detail. Convolution layers shrink the audio and catch that detail.</td><td>A plain transformer is architecturally fine. The gap is data, which multilingual pretraining and LLMs fill.</td><td>One sentence can be spoken many valid ways, and the output is thousands of times longer than the input. It needs duration prediction, codecs and a vocoder.</td></tr>
+<tr><td><strong>Data needs</strong></td><td>Transcribed audio, which is scarce; self-supervised pretraining reduces the need</td><td>Parallel sentence pairs; very few exist for tribal languages</td><td>Clean studio recordings, a few to tens of hours per voice</td></tr>
+<tr><td><strong>Where each wins</strong></td><td>Conformer with CTC or RNN-T for live calls; encoder-decoder for accuracy</td><td>Multilingual encoder-decoder for scheduled languages; fine-tuned LLM for low-resource languages and style</td><td>FastPitch with HiFi-GAN for speed; LLM-based for expressiveness and code-mixing</td></tr>
+<tr><td><strong>Where each struggles</strong></td><td>Dialects, overlapping speakers, invented text on silence</td><td>Names, domain terms, unseen languages; LLMs adding or dropping content</td><td>Numbers, formulas and rare words; emotion control; code-mixed pronunciation</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- 8 -->
+<section id="measure">
+<h2>9. How we measure them</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Metric</th><th>Used for</th><th>What it tells you</th><th>Note for Indic languages</th></tr></thead>
+<tbody>
+<tr><td><strong>WER</strong></td><td>ASR</td><td>Share of words wrong. Lower is better.</td><td>Valid spelling variants count as errors, which inflates WER. Some benchmarks now accept documented variants.</td></tr>
+<tr><td><strong>CER</strong></td><td>ASR</td><td>Share of characters wrong. Lower is better.</td><td>Fairer for languages that pack grammar into word endings, where one wrong suffix fails a whole word.</td></tr>
+<tr><td><strong>BLEU</strong></td><td>NMT</td><td>Word overlap with a human translation. Higher is better.</td><td>Penalises correct translations that use different word forms.</td></tr>
+<tr><td><strong>chrF and chrF++</strong></td><td>NMT</td><td>Character overlap with a human translation. Higher is better.</td><td>Preferred for Indian languages; IndicTrans2 reports it.</td></tr>
+<tr><td><strong>MOS</strong></td><td>TTS</td><td>Listener rating of quality, 1 to 5. Higher is better.</td><td>Needs native-speaker listeners; automated MOS estimators are less reliable for Indian languages.</td></tr>
+<tr><td><strong>RTF</strong></td><td>ASR, TTS</td><td>Processing time divided by audio length. Below 1 is faster than real time.</td><td></td></tr>
+<tr><td><strong>Latency</strong></td><td>All</td><td>Time before a response starts.</td><td>Voice agents generally need the full round trip under about 700 ms to feel natural.</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- 9 -->
+<section id="thread">
+<h2>10. The common thread</h2>
+<p>All three domains now share the same foundation, the transformer and its attention mechanism, and each adds what its kind of data needs.</p>
+<div class="tree" role="img" aria-label="Transformer foundation branching into ASR, NMT and TTS specialisations">
+<div class="root"><b>Transformer</b><span>attention, large-scale multilingual pretraining</span></div>
+<div class="trunk"></div>
+<div class="branches">
+<div class="br s"><b>ASR</b>Adds what audio input needs:<ul><li>Convolution for fine sound detail (Conformer)</li><li>CTC or RNN-T for live output</li><li>Self-supervised pretraining for scarce transcripts</li></ul></div>
+<div class="br t"><b>NMT</b>Mostly the transformer as is:<ul><li>Encoder-decoder for scheduled languages</li><li>Decoder-only LLMs for low-resource languages</li><li>Gains come mainly from data</li></ul></div>
+<div class="br s"><b>TTS</b>Adds what audio output needs:<ul><li>Duration and pitch prediction</li><li>Audio codecs and sound tokens</li><li>A vocoder to make the wave</li></ul></div>
+</div>
+</div>
+<p>The pattern behind every change in this guide is the same: an approach hit a limit (speed, data, or naturalness) and the next design was built to get past it. For Indian languages the limit that matters most today is data, which is why multilingual pretraining and careful fine-tuning matter more than choosing between architectures.</p>
+</section>
+
+<!-- 10 -->
+<section id="glossary">
+<h2>11. Glossary</h2>
+
+<h3>Model terms</h3>
+<dl class="gloss">
+<dt>Architecture</dt><dd>The overall design and internal structure of a neural network.</dd>
+<dt id="g-parameters">Parameters</dt><dd>The adjustable internal values a model learns during training, roughly a model's "knowledge". More parameters usually means more capacity to learn, but also more computing power needed. "3B" means 3 billion parameters.</dd>
+<dt>Encoder</dt><dd>The part of a model that reads and understands an input before anything is generated.</dd>
+<dt>Decoder</dt><dd>The part of a model that generates output, usually one piece at a time.</dd>
+<dt>Attention</dt><dd>A mechanism that lets a model weigh how much every part of its input matters to every other part, regardless of distance.</dd>
+<dt id="g-embedding">Embedding</dt><dd>A way of representing a word, sound or token as a list of numbers that captures its meaning, so the model can do math on language.</dd>
+<dt id="g-token">Token</dt><dd>The smallest unit a model processes. For text, a whole word, part of a word, or a character, depending on the model. For audio, a short code standing for a slice of sound.</dd>
+<dt>Tokenization</dt><dd>Breaking raw text (or audio) into tokens before feeding it into a model. Tokenizers built mainly for English split Indian-language words into many small pieces, which makes models slower and less accurate.</dd>
+<dt>Context window</dt><dd>The maximum amount of text or audio a model can consider at once. For many ASR models this is about 30 seconds of audio.</dd>
+<dt>Mixture of experts (MoE)</dt><dd>A design where only a small subset of a model's parameters is used for any given input, making large models cheaper to run.</dd>
+<dt>Convolutional neural network (CNN)</dt><dd>A network that is especially good at catching small, local patterns. Originally built for recognising shapes in images, also used for short bursts of sound.</dd>
+<dt>Recurrent neural network (RNN)</dt><dd>An older design that processes a sequence step by step, carrying a "memory" from one step to the next. LSTM and GRU are improved versions that remember longer.</dd>
+<dt>Conformer</dt><dd>A speech encoder that combines convolution (for fine sound detail) with attention (for wider context) in every layer.</dd>
+<dt id="g-mel">Mel spectrogram</dt><dd>A picture of sound showing which pitches are loud at each moment. Most speech models use it as their input or as a middle step.</dd>
+<dt id="g-codec">Audio codec</dt><dd>A model that compresses audio into a short list of tokens and can rebuild the audio from them. Lets text-style models generate speech.</dd>
+<dt id="g-vocoder">Vocoder</dt><dd>The final step of TTS that turns a sound picture or sound tokens into an actual audio wave.</dd>
+<dt id="g-gan">GAN (generative adversarial network)</dt><dd>A training setup with a "maker" network and a "judge" network. The judge tries to spot fakes, which pushes the maker to produce realistic output. Most fast vocoders are trained this way.</dd>
+<dt id="g-vae">VAE (variational autoencoder)</dt><dd>A model that compresses data into a flexible space where nearby points sound or look similar, so it can produce natural variation.</dd>
+<dt>State space model</dt><dd>A newer sequence design, such as Mamba, that reads input step by step with a fixed-size memory, keeping delay low on long inputs.</dd>
+</dl>
+
+<h3>Training terms</h3>
+<dl class="gloss">
+<dt>Pretraining</dt><dd>The initial, broad phase of training on large amounts of general data, before the model is specialised for a task.</dd>
+<dt>Fine-tuning</dt><dd>Training an already pretrained model further on a smaller, task-specific dataset, such as Marathi to Bhili sentence pairs.</dd>
+<dt>Transfer learning</dt><dd>The idea that knowledge learned on one task or language helps a model on a different but related task or language.</dd>
+<dt>Supervised learning</dt><dd>Training with labelled examples, where the correct answer is provided alongside each input.</dd>
+<dt>Self-supervised learning</dt><dd>Training a model to predict hidden parts of its own input (a hidden word or audio chunk), without manually labelled data.</dd>
+<dt>Parallel data</dt><dd>Pairs of the same sentence in two languages, used to train translation models.</dd>
+<dt>Low-resource language</dt><dd>A language with little digital text or audio available for training, such as Bhili.</dd>
+<dt>Code-mixing</dt><dd>Switching between languages within one sentence, such as Hindi and English.</dd>
+<dt>Loss function</dt><dd>A mathematical measure of how wrong a model's prediction is, used to guide training.</dd>
+<dt>Overfitting</dt><dd>When a model learns the training data too specifically and performs poorly on new, unseen data. A common risk when fine-tuning on small datasets.</dd>
+<dt>Checkpoint</dt><dd>A saved snapshot of a model's parameters at a point during training, which can be reloaded later.</dd>
+<dt>Distillation</dt><dd>Training a smaller, faster model to copy a larger one. IndicTrans2's "distilled" versions are made this way.</dd>
+<dt>Quantization</dt><dd>Storing a model's parameters with fewer digits to make it smaller and faster, with a small loss in quality. Common for running models on phones.</dd>
+</dl>
+
+<h3>Inference and testing terms</h3>
+<dl class="gloss">
+<dt>Inference</dt><dd>Using an already-trained model to produce an output on new input, as opposed to training it. Training happens once, or occasionally when a model is updated; inference happens every single time someone uses the model, for example every time a sentence is translated or a voice command is transcribed. Inference is far cheaper and faster than training because the model's values are fixed and it is only running a calculation, not learning. It can run on a large server (common for bigger models) or directly on a phone or small device (common for lighter, optimised models). The speed of inference decides whether a voice assistant feels instant or sluggish.</dd>
+<dt>Endpoint</dt><dd>The address a piece of software sends a request to in order to use a deployed model and get a response back, the "doorway" through which an application talks to a model. For example, a translation app sends the typed sentence to a translation model's endpoint and receives the translation back. Most production AI features work this way; the user never sees the model, only the app that talks to it through the endpoint.</dd>
+<dt>Latency</dt><dd>The delay between giving a model an input and receiving its output. Critical for real-time voice applications.</dd>
+<dt>Time to first audio</dt><dd>For TTS, how long before the first sound plays. Matters more than total generation time in conversation.</dd>
+<dt>Streaming</dt><dd>Processing input, such as audio, continuously as it arrives rather than waiting for all of it before starting.</dd>
+<dt>Autoregressive</dt><dd>Generating output one piece at a time, where each new piece depends on everything generated before it.</dd>
+<dt>Non-autoregressive</dt><dd>Generating the entire output at once, in parallel, rather than step by step.</dd>
+<dt id="g-ctc">Connectionist temporal classification (CTC)</dt><dd>An output method for speech recognition that labels each slice of audio with a character or a "blank", then merges repeats and drops blanks. It lines up audio with text even though they have different lengths. Fast and simple, but each guess is made without looking at the others, so grammar is weaker.</dd>
+<dt id="g-rnnt">RNN transducer (RNN-T)</dt><dd>An output method for speech recognition designed for real-time streaming. A small prediction network keeps track of the words written so far and combines with the audio encoder at each step, so output appears word by word as the person speaks. Despite the name, it is now usually paired with Conformer encoders rather than RNNs.</dd>
+<dt id="g-vad">Voice activity detection (VAD)</dt><dd>A small model that detects whether someone is speaking, so silence and background noise are not sent to ASR.</dd>
+<dt id="g-turn">Turn-taking (endpointing)</dt><dd>Deciding when a caller has finished their turn and the agent should reply. Simple systems wait for a fixed length of silence; newer ones use small models that also consider tone and words.</dd>
+<dt id="g-tn">Text normalisation</dt><dd>Converting written forms such as numbers, currency and dates into the words a TTS model should say, for example ₹2,500 into "do hazaar paanch sau rupaye".</dd>
+<dt id="g-g2p">G2P (grapheme to phoneme)</dt><dd>Converting spelling (graphemes) into speech sounds (phonemes), so a TTS model knows how to pronounce a word.</dd>
+<dt id="g-schwa">Schwa deletion</dt><dd>In Hindi, Marathi and some other languages, the short "a" sound written into many letters is often not spoken, as in "कमल" said "kamal". TTS models must learn or be told when to drop it.</dd>
+<dt>Diarization</dt><dd>Working out "who spoke when" in a recording with several speakers.</dd>
+<dt>Language identification</dt><dd>Detecting which language is being spoken.</dd>
+<dt>Inverse text normalisation</dt><dd>Converting spoken forms into written ones, such as "twenty five" into "25".</dd>
+<dt>Hallucination</dt><dd>When a model outputs content that was not in the input, such as words that were never spoken or facts added to a translation.</dd>
+<dt>Word error rate (WER)</dt><dd>The main ASR accuracy measure: substituted, missing and extra words, divided by the number of words in the correct transcript. Lower is better, and it can exceed 100% if the model adds many extra words.</dd>
+<dt>Character error rate (CER)</dt><dd>The same idea as WER, counted in characters. Often fairer for Indian languages.</dd>
+<dt>BLEU (bilingual evaluation understudy)</dt><dd>A translation quality measure comparing a model's output to a reference translation by word overlap. Higher usually means closer to correct. "dBLEU" is a document-level variant used in some recent evaluations.</dd>
+<dt>chrF and chrF++</dt><dd>Translation measures based on character overlap rather than whole words. Better suited to Indian languages with rich word endings.</dd>
+<dt>MOS (mean opinion score)</dt><dd>A TTS quality measure where listeners rate speech from 1 to 5.</dd>
+<dt>Real-time factor (RTF)</dt><dd>Processing time divided by audio length. Below 1 means faster than real time.</dd>
+<dt>Benchmark</dt><dd>A standard test or dataset used to measure and compare model performance.</dd>
+<dt>Zero-shot</dt><dd>When a model does a task it was never specifically trained on, relying on what it learned elsewhere. In TTS, "zero-shot voice cloning" means copying a voice from a short sample without training on that voice.</dd>
+</dl>
+</section>
+
+<footer>
+<p>Sources: public model cards for Indic-Transcribe and Indic-Speak (Bodhan AI and AI4Bharat, Hugging Face), AI4Bharat project pages for IndicConformer, IndicWav2Vec, IndicTrans2, Indic-TTS, IndicF5 and Indic Parler-TTS, and Sarvam AI documentation, as of October 2026.</p>
+</footer>
+</main>
+</body>
+</html>
